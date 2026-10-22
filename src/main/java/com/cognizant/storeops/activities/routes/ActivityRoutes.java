@@ -34,6 +34,12 @@ public class ActivityRoutes {
         return ResponseEntity.status(HttpStatus.CREATED).body(service.create(context(u, s, r), body));
     }
 
+    @PatchMapping("/bulk-status")
+    public BulkStatusResult bulkStatus(@RequestHeader("X-User-Id") String u, @RequestHeader("X-Store-Id") String s,
+            @RequestHeader("X-User-Role") String r, @Valid @RequestBody BulkStatusRequest body) {
+        return service.bulkUpdateStatus(context(u, s, r), body);
+    }
+
     @GetMapping("/{id}")
     public Task get(@RequestHeader("X-User-Id") String u, @RequestHeader("X-Store-Id") String s,
             @RequestHeader("X-User-Role") String r, @PathVariable String id) {

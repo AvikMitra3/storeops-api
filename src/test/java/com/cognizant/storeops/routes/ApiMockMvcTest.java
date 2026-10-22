@@ -36,6 +36,28 @@ class ApiMockMvcTest {
         mvc.perform(headers(delete("/api/activities/" + id))).andExpect(status().isNoContent());
     }
 
+    @Autowired
+    com.cognizant.storeops.shared.events.InMemoryEventBus eventBus;
+
+    @Test
+    void bulkStatusEmitsOneAuditEventPerUpdatedTask() throws Exception {
+        String body = "{\"title\":\"Audit me\",\"priority\":\"LOW\",\"category\":\"GENERAL\"}";
+        String json = mvc
+                .perform(headers(post("/api/activities")).contentType(MediaType.APPLICATION_JSON).content(body))
+                .andReturn().getResponse().getContentAsString();
+        String id = new com.fasterxml.jackson.databind.ObjectMapper().readTree(json).get("id").asText();
+        mvc.perform(headers(patch("/api/activities/bulk-status")).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"updates\":[{\"activityId\":\"" + id + "\",\"status\":\"DONE\"}]}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.failed.length()").value(0));
+        long audits = eventBus.events().stream()
+                .filter(e -> "ACTIVITY_STATUS_CHANGED".equals(e.type()))
+                .filter(e -> id.equals(e.payload().get("activityId")))
+                .filter(e -> "TODO".equals(e.payload().get("from")) && "DONE".equals(e.payload().get("to"))
+                        && "manager-1".equals(e.payload().get("changedBy")))
+                .count();
+        Assertions.assertEquals(1, audits);
+    }
+
     @Test
     void programmeAndAlerts() throws Exception {
         String json = mvc
@@ -54,5 +76,26 @@ class ApiMockMvcTest {
         mvc.perform(headers(post("/api/activities")).contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isBadRequest());
         mvc.perform(headers(get("/api/activities/missing"))).andExpect(status().isNotFound());
+    }
+
+    @Test
+    void bulkStatusHandlesPartialFailure() throws Exception {
+        String body = "{\"title\":\"Handover\",\"priority\":\"HIGH\",\"category\":\"RESTOCKING\"}";
+        String json = mvc
+                .perform(headers(post("/api/activities")).contentType(MediaType.APPLICATION_JSON).content(body))
+                .andReturn().getResponse().getContentAsString();
+        String id = new com.fasterxml.jackson.databind.ObjectMapper().readTree(json).get("id").asText();
+        String bulk = "{\"updates\":[{\"activityId\":\"" + id + "\",\"status\":\"BLOCKED\"},"
+                + "{\"activityId\":\"missing\",\"status\":\"DONE\"},"
+                + "{\"activityId\":\"" + id + "\",\"status\":\"TODO\"}]}";
+        mvc.perform(headers(patch("/api/activities/bulk-status")).contentType(MediaType.APPLICATION_JSON)
+                .content(bulk)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.updated.length()").value(1))
+                .andExpect(jsonPath("$.updated[0].status").value("BLOCKED"))
+                .andExpect(jsonPath("$.failed.length()").value(2))
+                .andExpect(jsonPath("$.failed[0].code").value("NOT_FOUND"))
+                .andExpect(jsonPath("$.failed[1].code").value("VALIDATION_ERROR"));
+        mvc.perform(headers(patch("/api/activities/bulk-status")).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"updates\":[]}")).andExpect(status().isBadRequest());
     }
 }

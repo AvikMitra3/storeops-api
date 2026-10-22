@@ -56,4 +56,29 @@ public class ActivityService {
         repository.delete(id);
         eventBus.emit(new DomainEvent("ACTIVITY_DELETED", Instant.now(), Map.of("activityId", id)));
     }
+
+    public BulkStatusResult bulkUpdateStatus(RequestContext c, BulkStatusRequest r) {
+        List<Task> updated = new ArrayList<>();
+        List<BulkStatusResult.Failure> failed = new ArrayList<>();
+        for (BulkStatusRequest.Item item : r.updates()) {
+            try {
+                updated.add(applyHandoverStatus(c, item));
+            } catch (AppError e) {
+                failed.add(new BulkStatusResult.Failure(item.activityId(), e.getCode(), e.getMessage()));
+            }
+        }
+        return new BulkStatusResult(updated, failed);
+    }
+
+    private Task applyHandoverStatus(RequestContext c, BulkStatusRequest.Item item) {
+        if (item.status() != TaskStatus.DONE && item.status() != TaskStatus.BLOCKED)
+            throw new ValidationError("Bulk status must be DONE or BLOCKED");
+        Task old = get(c, item.activityId());
+        Task t = repository.save(new Task(old.id(), old.storeId(), old.programmeId(), old.title(), item.status(),
+                old.priority(), old.category(), old.assigneeId(), old.ownerId(), old.createdAt()));
+        eventBus.emit(new DomainEvent("ACTIVITY_STATUS_CHANGED", Instant.now(),
+                Map.of("activityId", t.id(), "from", old.status().name(), "to", t.status().name(), "changedBy",
+                        c.userId())));
+        return t;
+    }
 }

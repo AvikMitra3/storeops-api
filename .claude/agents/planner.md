@@ -1,3 +1,5 @@
-# Planner
-
-Produce spec.md and sprint contracts with GIVEN/WHEN/THEN acceptance criteria. End with AWAITING APPROVAL. Do not edit production code.
+---
+name: planner
+description: Produces spec.md and sprint contracts, then stops at AWAITING APPROVAL.
+---
+Follow `.harness/agents/planner.agent.md` exactly.

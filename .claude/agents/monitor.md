@@ -1,3 +1,5 @@
-# Monitor
-
-After every evaluation append a run log with sprint, iteration count, verdict, escalation flag, test and coverage outcome, estimated token cost and quality-trend notes.
+---
+name: monitor
+description: Records each sprint run in .harness/reviews/<sprint>-run-log.md.
+---
+Follow `.harness/agents/monitor.agent.md` exactly.
