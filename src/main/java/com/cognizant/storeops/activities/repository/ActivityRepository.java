@@ -8,6 +8,8 @@ public interface ActivityRepository {
 
     Optional<Task> findById(String id);
 
+    List<Task> findSlaCandidates();
+
     Task save(Task task);
 
     void delete(String id);

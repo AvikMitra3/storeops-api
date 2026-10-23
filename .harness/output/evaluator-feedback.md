@@ -1,31 +1,60 @@
-# Evaluator feedback: Sprint 1, iteration 1
+# Evaluator feedback: Sprint 4 (Escalation to STORE_MANAGER and hardening), iteration 1 of 3
 
 VERDICT: PASS
 
-## Automated checks
-| Id | Result | Evidence |
+## Automated results
+- A1 `mvn clean verify`: exit 0 (first attempt, no OneDrive lock problem).
+- A2 surefire txt: Failures 0, Errors 0, Skipped 0 in every file. Counts: ArchitectureTest 10, ApiMockMvcTest (incl. nested ConfiguredGrace, reported in `ApiMockMvcTest$ConfiguredGrace.txt`) 14, ServiceCoverageTest 22, StoreOpsApplicationTests 1 = 47 (matches generator-summary).
+- A3 ArchitectureTest 10 tests, 0 failures. A4 JaCoCo `check` is part of verify and the build exited 0.
+- A5 all six Proof methods present in TEST-*.xml with no `<failure>`/`<error>` (any file: 0).
+- `grep "throw new (Error|RuntimeException)(" src/main`: no matches. `git diff pom.xml`: empty.
+
+## Dimension scores
+| Dimension | Passed/Total | Weighted |
 |---|---|---|
-| A1 `mvn -B clean verify` | PASS | exit 0, BUILD SUCCESS |
-| A2 surefire | PASS | ApiMockMvcTest 5, ServiceCoverageTest 5, StoreOpsApplicationTests 1, ArchitectureTest 4; 15 total, 0 failures/errors/skipped |
-| A3 ArchitectureTest | PASS | 4/4 (ran as part of A1; not run separately) |
-| A4 JaCoCo | PASS | "All coverage checks have been met." Bundle 92.1% (>=80), service packages min 97.7% (>=80), routes packages min 75% (>=70) |
-| A5 Proof tests in surefire XML | PASS | `bulkStatusHandlesPartialFailure` and `bulkStatusEmitsOneAuditEventPerUpdatedTask` each present once, 0 failure/error elements |
+| D1 | 8/8 | 40 |
+| D2 | 9/9 | 30 |
+| D3 | 12/12 (AC1-7 plus R1-R4, with R1/R2 N/A-pass) | 30 |
+Total = 40 + 30 + 30 = 100. No hard gate triggered.
 
-## Hard gates
-None triggered (D1-G1..3, D2-G1..3, D3-G1..2 all clear).
+## Per-check table
+| Check id | Result | Evidence |
+|---|---|---|
+| D1-1 | PASS | A1 exit 0 |
+| D1-2 | PASS | A2 clean |
+| D1-3 | PASS | JaCoCo check inside verify passed |
+| D1-4 | PASS | all 6 Proof methods found in surefire XML |
+| D1-5 | PASS | no new endpoint this sprint (N/A) |
+| D1-6 | PASS | event-driven path asserted via resulting notifications (ApiMockMvcTest:183-196); unit test emits SLA_ESCALATION_DUE (ServiceCoverageTest:322) |
+| D1-7 | PASS | scans use fixed Instants (`DUE.plusSeconds(..)`, ApiMockMvcTest:180-233); no sleep |
+| D1-8 | PASS | 47 total, 22 ServiceCoverageTest match summary |
+| D2-1 | PASS | A3 |
+| D2-2 | PASS | ArchUnit green; no routes change for escalation |
+| D2-3 | PASS | logic in `AlertService.notifyEscalation` |
+| D2-4 | PASS | no new throws; NotFoundError only caught |
+| D2-5 | PASS | `SlaAlertListener` subscribes `SLA_ESCALATION_DUE` via EventBus; AlertService uses `StaffService`, not staff repository |
+| D2-6 | PASS | constructor injection; no new models |
+| D2-7 | PASS | no reports change |
+| D2-8 | PASS | manager lookup keyed on event storeId: `findByStoreAndRole` filters `u.storeId().equals(storeId)` (InMemoryStaffRepository:22-27) |
+| D2-9 | PASS | pom.xml unchanged |
+| D3-1 S4-AC1 | PASS | ApiMockMvcTest:183 asserts exactly one ESCALATION IN_APP UNREAD with title for manager-1 and exactly one SLA_BREACH for lead-1 after scans at T+1m and T+30m |
+| D3-2 S4-AC2 | PASS | ApiMockMvcTest:199 covers T+29m and DONE-then-T+30m |
+| D3-3 S4-AC3 | PASS | ServiceCoverageTest:292 store-2 event saves nothing and store-1 manager lookup never made |
+| D3-4 S4-AC4 | PASS | ServiceCoverageTest:304 assertDoesNotThrow and no save |
+| D3-5 S4-AC5 | PASS | ServiceCoverageTest:313 no `getById`, one ESCALATION to manager-1 |
+| D3-6 S4-AC6 | PASS | see ruling below |
+| D3-7 S4-AC7 | PASS | docs/api-examples.md "SLA breach alerting" shows dueDate on create plus SLA_BREACH and ESCALATION alerts; README.md table lists `storeops.sla.grace-period`, `scan-interval`, `scan-enabled` |
+| D3-R1 | PASS | no error contract change |
+| D3-R2 | PASS | N/A, bulk untouched |
+| D3-R3 | PASS | files changed match contract's expected files plus SlaAlertListener and test resources already part of the feature |
+| D3-R4 | PASS | summary has AC table, files, known gaps; claims verified |
 
-## D1 Build and Test Integrity (40)
-D1-1 PASS; D1-2 PASS; D1-3 PASS; D1-4 PASS (both Proof tests exist); D1-5 PASS (happy path, 400 on empty list, not-found item); D1-6 PASS (`bulkStatusEmitsOneAuditEventPerUpdatedTask` asserts type and payload); D1-7 PASS (no sleep/clock); D1-8 PASS (summary states 15 tests). 8/8 -> 40.0
+## S4-AC6 ruling (nested class)
+The contract names `ApiMockMvcTest#escalationHonoursConfiguredGrace` and requires a test property override `storeops.sla.grace-period=PT5M`. A property override requires its own Spring context, so a plain method on the outer class cannot satisfy the GIVEN. The method `escalationHonoursConfiguredGrace` exists inside `ApiMockMvcTest.ConfiguredGrace` (ApiMockMvcTest:212-235), carries `@SpringBootTest(properties = "storeops.sla.grace-period=PT5M")`, runs and passes, and its testcase name matches the A5 grep. It asserts no escalation at T+1m and escalation at T+5m. Accepted as satisfying the contract; the disclosure was honest.
 
-## D2 Architecture Compliance (30)
-D2-1 PASS; D2-2 PASS (`ActivityRoutes.java` imports no repository); D2-3 PASS (route is one service call, `ActivityRoutes.java:37-41`); D2-4 PASS (`ValidationError`/`NotFoundError` only); D2-5 PASS (`eventBus.emit`, `ActivityService.java:79`); D2-6 PASS; D2-7 PASS (reports untouched); D2-8 PASS (`get()` enforces storeId, `ActivityService.java:36-41`); D2-9 PASS (pom unchanged). 9/9 -> 30.0
-
-## D3 Requirement Fulfilment (30)
-D3-1..4 PASS (one per AC); D3-R1 PASS; D3-R2 PASS (`BulkStatusResult`); D3-R3 PASS; D3-R4 PASS. 8/8 -> 30.0
-
-## Score
-40.0 + 30.0 + 30.0 = 100.0, no hard gate, all D3 PASS -> PASS.
+## Hard gates triggered
+None. Ambiguity fallbacks: none used.
 
 ## Non-scoring notes
-- `ActivityService.java:3,5,7,8` use wildcard imports (pre-existing style).
-- Bulk update is not restricted by role or ownership; consider a follow-up if handover should be limited.
+- Surefire lists the outer `ApiMockMvcTest` report with 0 tests and puts its tests in the `$ConfiguredGrace` file; cosmetic.
+- AC3 is proven at unit level with mocks; real StaffRepository store filter confirmed by reading code.

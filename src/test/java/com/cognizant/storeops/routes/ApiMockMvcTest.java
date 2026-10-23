@@ -105,4 +105,139 @@ class ApiMockMvcTest {
         mvc.perform(headers(patch("/api/activities/bulk-status")).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"updates\":[]}")).andExpect(status().isBadRequest());
     }
+
+    @Autowired
+    org.springframework.context.ApplicationContext context;
+
+    @Test
+    void createTaskWithDueDate() throws Exception {
+        String body = "{\"title\":\"Due\",\"priority\":\"HIGH\",\"category\":\"GENERAL\","
+                + "\"dueDate\":\"2030-01-01T10:00:00Z\"}";
+        mvc.perform(headers(post("/api/activities")).contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.dueDate").value("2030-01-01T10:00:00Z"))
+                .andExpect(jsonPath("$.slaBreachNotifiedAt").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.slaEscalatedAt").value(org.hamcrest.Matchers.nullValue()));
+    }
+
+    @Test
+    void createTaskRejectsMalformedDueDate() throws Exception {
+        String body = "{\"title\":\"Due\",\"priority\":\"HIGH\",\"category\":\"GENERAL\","
+                + "\"dueDate\":\"not-a-date\"}";
+        mvc.perform(headers(post("/api/activities")).contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("VALIDATION_ERROR"));
+    }
+
+    @Autowired
+    com.cognizant.storeops.activities.service.ActivityService activityService;
+
+    private String createOverdue(String assignee, String title) throws Exception {
+        String body = "{\"title\":\"" + title + "\",\"priority\":\"HIGH\",\"category\":\"GENERAL\","
+                + (assignee == null ? "" : "\"assigneeId\":\"" + assignee + "\",")
+                + "\"dueDate\":\"2020-01-01T00:00:00Z\"}";
+        String json = mvc.perform(headers(post("/api/activities")).contentType(MediaType.APPLICATION_JSON)
+                .content(body)).andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        return new com.fasterxml.jackson.databind.ObjectMapper().readTree(json).get("id").asText();
+    }
+
+    private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder alertsAs(String user) {
+        return get("/api/alerts").header("X-User-Id", user);
+    }
+
+    private java.util.List<com.fasterxml.jackson.databind.JsonNode> alertsFor(String user, String id)
+            throws Exception {
+        String json = mvc.perform(alertsAs(user)).andExpect(status().isOk()).andReturn().getResponse()
+                .getContentAsString();
+        java.util.List<com.fasterxml.jackson.databind.JsonNode> out = new java.util.ArrayList<>();
+        for (com.fasterxml.jackson.databind.JsonNode n : new com.fasterxml.jackson.databind.ObjectMapper()
+                .readTree(json)) {
+            if (n.get("message").asText().contains(id)) {
+                out.add(n);
+            }
+        }
+        return out;
+    }
+
+    @Test
+    void slaBreachNotifiesDepartmentLead() throws Exception {
+        String id = createOverdue("lead-1", "Overdue lead task");
+        activityService.scanSlaBreaches(java.time.Instant.parse("2020-01-01T00:01:00Z"));
+        java.util.List<com.fasterxml.jackson.databind.JsonNode> mine = alertsFor("lead-1", id);
+        Assertions.assertEquals(1, mine.size());
+        Assertions.assertEquals("SLA_BREACH", mine.get(0).get("type").asText());
+        Assertions.assertEquals("IN_APP", mine.get(0).get("channel").asText());
+        Assertions.assertEquals("UNREAD", mine.get(0).get("status").asText());
+        Assertions.assertTrue(mine.get(0).get("message").asText().contains("Overdue lead task"));
+    }
+
+    @Test
+    void slaBreachNotificationVisibleOnlyToRecipient() throws Exception {
+        String id = createOverdue("lead-1", "Private lead task");
+        activityService.scanSlaBreaches(java.time.Instant.parse("2020-01-01T00:01:00Z"));
+        Assertions.assertEquals(1, alertsFor("lead-1", id).size());
+        Assertions.assertTrue(alertsFor("manager-1", id).isEmpty());
+    }
+
+    private static final java.time.Instant DUE = java.time.Instant.parse("2020-01-01T00:00:00Z");
+
+    @Test
+    void slaEscalationNotifiesStoreManager() throws Exception {
+        String id = createOverdue("lead-1", "Escalate me");
+        activityService.scanSlaBreaches(DUE.plusSeconds(60));
+        activityService.scanSlaBreaches(DUE.plusSeconds(30 * 60));
+        java.util.List<com.fasterxml.jackson.databind.JsonNode> mgr = alertsFor("manager-1", id);
+        Assertions.assertEquals(1, mgr.size());
+        Assertions.assertEquals("ESCALATION", mgr.get(0).get("type").asText());
+        Assertions.assertEquals("IN_APP", mgr.get(0).get("channel").asText());
+        Assertions.assertEquals("UNREAD", mgr.get(0).get("status").asText());
+        Assertions.assertTrue(mgr.get(0).get("message").asText().contains("Escalate me"));
+        java.util.List<com.fasterxml.jackson.databind.JsonNode> lead = alertsFor("lead-1", id);
+        Assertions.assertEquals(1, lead.size());
+        Assertions.assertEquals("SLA_BREACH", lead.get(0).get("type").asText());
+    }
+
+    @Test
+    void noEscalationBeforeGraceOrWhenDone() throws Exception {
+        String early = createOverdue("lead-1", "Early task");
+        activityService.scanSlaBreaches(DUE.plusSeconds(60));
+        activityService.scanSlaBreaches(DUE.plusSeconds(29 * 60));
+        Assertions.assertTrue(alertsFor("manager-1", early).isEmpty());
+        String done = createOverdue("lead-1", "Done task");
+        activityService.scanSlaBreaches(DUE.plusSeconds(60));
+        mvc.perform(headers(patch("/api/activities/" + done)).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"status\":\"DONE\"}")).andExpect(status().isOk());
+        activityService.scanSlaBreaches(DUE.plusSeconds(30 * 60));
+        Assertions.assertTrue(alertsFor("manager-1", done).isEmpty());
+    }
+
+    @Nested
+    @SpringBootTest(properties = "storeops.sla.grace-period=PT5M")
+    @AutoConfigureMockMvc
+    class ConfiguredGrace {
+        @Autowired
+        MockMvc graceMvc;
+
+        @Autowired
+        com.cognizant.storeops.activities.service.ActivityService graceService;
+
+        @Test
+        void escalationHonoursConfiguredGrace() throws Exception {
+            String body = "{\"title\":\"Short grace\",\"priority\":\"CRITICAL\",\"category\":\"GENERAL\","
+                    + "\"dueDate\":\"2020-01-01T00:00:00Z\"}";
+            String json = graceMvc.perform(headers(post("/api/activities")).contentType(MediaType.APPLICATION_JSON)
+                    .content(body)).andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+            String id = new com.fasterxml.jackson.databind.ObjectMapper().readTree(json).get("id").asText();
+            graceService.scanSlaBreaches(DUE.plusSeconds(60));
+            String before = graceMvc.perform(alertsAs("manager-1")).andReturn().getResponse().getContentAsString();
+            Assertions.assertFalse(before.contains(id));
+            graceService.scanSlaBreaches(DUE.plusSeconds(5 * 60));
+            String after = graceMvc.perform(alertsAs("manager-1")).andReturn().getResponse().getContentAsString();
+            Assertions.assertTrue(after.contains(id));
+        }
+    }
+
+    @Test
+    void schedulerIsOffWhenScanDisabled() {
+        Assertions.assertTrue(context.getBeansOfType(
+                com.cognizant.storeops.activities.service.SlaScanScheduler.class).isEmpty());
+    }
 }

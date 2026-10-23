@@ -2,6 +2,7 @@ package com.cognizant.storeops.shared.error;
 
 import java.time.Instant;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -19,5 +20,11 @@ public class GlobalExceptionHandler {
         String message = e.getBindingResult().getFieldErrors().stream().findFirst()
                 .map(x -> x.getField() + " " + x.getDefaultMessage()).orElse("Invalid request");
         return ResponseEntity.badRequest().body(new ErrorResponse("VALIDATION_ERROR", message, 400, Instant.now()));
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    ResponseEntity<ErrorResponse> unreadable(HttpMessageNotReadableException e) {
+        return ResponseEntity.badRequest()
+                .body(new ErrorResponse("VALIDATION_ERROR", "Malformed request body", 400, Instant.now()));
     }
 }

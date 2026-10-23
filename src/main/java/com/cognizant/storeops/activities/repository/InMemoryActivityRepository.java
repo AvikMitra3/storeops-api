@@ -19,6 +19,11 @@ public class InMemoryActivityRepository implements ActivityRepository {
         return Optional.ofNullable(data.get(id));
     }
 
+    public List<Task> findSlaCandidates() {
+        return data.values().stream().filter(x -> x.dueDate() != null && x.status() != TaskStatus.DONE)
+                .filter(x -> x.priority() == TaskPriority.HIGH || x.priority() == TaskPriority.CRITICAL).toList();
+    }
+
     public Task save(Task task) {
         data.put(task.id(), task);
         return task;

@@ -8,3 +8,8 @@ springdoc:
     path: /v3/api-docs
   swagger-ui:
     path: /docs
+storeops:
+  sla:
+    grace-period: PT30M
+    scan-interval: PT1M
+    scan-enabled: true
