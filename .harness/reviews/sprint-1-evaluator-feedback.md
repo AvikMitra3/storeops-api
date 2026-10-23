@@ -8,7 +8,7 @@ VERDICT: PASS
 | A1 `mvn -B clean verify` | PASS | exit 0, BUILD SUCCESS |
 | A2 surefire | PASS | ApiMockMvcTest 5, ServiceCoverageTest 5, StoreOpsApplicationTests 1, ArchitectureTest 4; 15 total, 0 failures/errors/skipped |
 | A3 ArchitectureTest | PASS | 4/4 (ran as part of A1; not run separately) |
-| A4 JaCoCo | PASS | "All coverage checks have been met." Bundle 92.1% (>=70), service packages min 97.7% (>=80), routes packages min 75% (>=70) |
+| A4 JaCoCo | PASS | "All coverage checks have been met." Bundle 92.1% (>=80), service packages min 97.7% (>=80), routes packages min 75% (>=70) |
 | A5 Proof tests in surefire XML | PASS | `bulkStatusHandlesPartialFailure` and `bulkStatusEmitsOneAuditEventPerUpdatedTask` each present once, 0 failure/error elements |
 
 ## Hard gates

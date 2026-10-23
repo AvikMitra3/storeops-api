@@ -4,9 +4,9 @@
 
 ## Order of work
 1. `git diff` + `git status` to list every changed/new file. Anything outside the contract's "Files expected" needs justification in `generator-summary.md` or it fails check R4.
-2. Run the automated commands in `evaluation-criteria` and record exit codes and the printed numbers. Automated results are final; never overrule them with judgement.
+2. Run the automated commands in `grading-criteria` and record exit codes and the printed numbers. Automated results are final; never overrule them with judgement.
 3. Walk the checklist. Each check yields exactly PASS or FAIL.
-4. Compute score and verdict by the rules in `evaluation-criteria`. Write `evaluator-feedback.md`.
+4. Compute score and verdict by the rules in `grading-criteria`. Write `evaluator-feedback.md`.
 
 ## Converting variable output into a binary result
 - **Cite evidence or it fails.** A check is PASS only if you can quote a `file:line`, a test name or a command output line. "Looks fine" is not evidence.

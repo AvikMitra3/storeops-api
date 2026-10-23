@@ -10,10 +10,10 @@
 ## Thresholds (JaCoCo `check`, `pom.xml`, LINE covered ratio)
 | Scope | Minimum |
 |---|---|
-| Whole bundle | 70% |
+| Whole bundle | 80% |
 | `*.service` packages | **80%** |
 | `*.routes` packages | 70% |
-| `*.shared.*` packages | 60% |
+| `*.shared.*` packages | 70% |
 A drop below any threshold fails `verify`; do not lower thresholds to pass.
 
 ## Test types and where they live

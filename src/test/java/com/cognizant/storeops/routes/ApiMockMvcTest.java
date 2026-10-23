@@ -36,6 +36,13 @@ class ApiMockMvcTest {
         mvc.perform(headers(delete("/api/activities/" + id))).andExpect(status().isNoContent());
     }
 
+    @Test
+    void apiDocsAreServed() throws Exception {
+        mvc.perform(get("/v3/api-docs")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/activities/bulk-status']").exists());
+        mvc.perform(get("/docs")).andExpect(status().is3xxRedirection());
+    }
+
     @Autowired
     com.cognizant.storeops.shared.events.InMemoryEventBus eventBus;
 

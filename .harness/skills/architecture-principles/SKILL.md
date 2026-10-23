@@ -9,7 +9,7 @@
 4. Models are immutable Java records in `<module>.model`. Request DTOs are records in `<module>.routes`.
 
 ## Module boundaries
-5. [AUTO] Only `activities` may touch `activities.repository`; same for `programmes` and `staff`. If you add a repository to `alerts` or `reports`, add the matching ArchUnit rule to `ArchitectureTest`.
+5. [AUTO] Only the owning module may touch its `<module>.repository` package (activities, programmes, staff, alerts, reports each have an ArchUnit rule). No class outside `alerts`/`reports` may depend on `alerts.service`/`reports.service` (event bus only). Repositories may not depend on `service`/`routes`. `reports` may not depend on any other module repository (read-only).
 6. A module may call another module's *service* or consume its *model*, never its repository. Prefer events for effects (notifications, reports).
 7. `shared` must not depend on any feature module, except the existing `staff.model.StaffRole` use in `RequestContext`.
 

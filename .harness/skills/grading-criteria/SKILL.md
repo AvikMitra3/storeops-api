@@ -1,4 +1,4 @@
-# evaluation-criteria
+# grading-criteria
 
 **Purpose:** the graded evaluation framework: dimensions, weights, hard gates, checklists and the deterministic verdict formula.
 
@@ -8,7 +8,7 @@
 | A1 | `mvn -B clean verify` | exit code 0 (covers compile, Checkstyle `check`, all tests, JaCoCo `check`) |
 | A2 | read `target/surefire-reports/*.txt` | `Failures: 0, Errors: 0, Skipped: 0` in every file |
 | A3 | `mvn -B -q test -Dtest=ArchitectureTest` | exit code 0 |
-| A4 | JaCoCo gates from A1 output | line `All coverage checks have been met.` present (bundle 70%, service 80%, routes 70%, shared 60%) |
+| A4 | JaCoCo gates from A1 output | line `All coverage checks have been met.` present (bundle 80%, service 80%, routes 70%, shared 70%) |
 | A5 | `grep -c "<testcase name=\"<proof-method>\"" target/surefire-reports/TEST-*.xml` for each `Proof:` method | count >= 1 and no `<failure>`/`<error>` child (feeds D3-G1) |
 
 ## Dimensions and weights (sum = 100%)
